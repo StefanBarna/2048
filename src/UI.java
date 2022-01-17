@@ -17,17 +17,20 @@ import javax.swing.*;
 import java.awt.Graphics;
 import javax.swing.JPanel;
 
-import java.awt.geom.RoundRectangle2D;
-
-public class UI extends JPanel implements ActionListener {
+public class UI extends JPanel {
     public static final int WIDTH = 520;    // width of the UI
-    public static final int HEIGHT = 800;   // height of the UI
-    private final int ANIMOD = 3;              // distance moved per timer count
+    public static final int HEIGHT = 780;   // height of the UI
+    private final int ANIMOD = 3;           // distance moved per timer count
 
-    private Grid g;         // 2048 grid
-    private Timer time;     // timer object
-    private boolean timerOn;// true of the timer is running
-    private int counter;    // timer counter
+    private final Grid g;       // 2048 grid
+    private final Timer time;   // timer object
+    private boolean timerOn;    // true of the timer is running
+    private int counter;        // timer counter
+
+    // ui buttons
+    public JButton reset;       // restart button
+    public JButton playAgain;   // restart button (exclusive to the win or loss screen)
+    public JButton resume;      // continue button (exclusive to the win screen)
 
     // direction velocity controls
     int xvel,
@@ -38,8 +41,25 @@ public class UI extends JPanel implements ActionListener {
         setFocusable(true);
         requestFocusInWindow();
 
-        // set timer
-        this.time = new Timer(10, this);
+        // set timer and check for timer related actions performed
+        this.time = new Timer(15, new ActionListener() {
+            public void actionPerformed(ActionEvent evt) {
+                // check if the action comes from the timer
+                counter++;
+                repaint();
+                // when the timer should close
+                if (counter > 5) {
+                    time.stop();
+                    timerOn = false;
+                    counter = 0;
+                    xvel = 0;
+                    yvel = 0;
+
+                    // cleanup after animation
+                    g.resetTileStatus();
+                }
+            }
+        });
         this.time.stop();
         this.timerOn = false;
         this.counter = 0;
@@ -50,7 +70,7 @@ public class UI extends JPanel implements ActionListener {
 
             public void keyPressed(KeyEvent e) {
                 // check if a current move is in play
-                if (!timerOn) {
+                if (!g.gameOver() && !g.gameWon()) {
                     time.start();
                     timerOn = true;
 
@@ -84,15 +104,21 @@ public class UI extends JPanel implements ActionListener {
                         }
                     }
 
-                    // if the player has made a viable turn
-                    if (g.turn(message)) {
-                        g.generateTile();
-                        repaint();
+                    // check if a viable button was clicked
+                    if (!message.equals("")) {
+                        g.turn(message);
+                        // if the player has made a viable turn
+                        if (g.turnMade()) {
+                            g.generateTile();
+                            repaint();
 
-                        // check game over conditions
-                        if (!g.hasEmpty() && !g.hasMerge()) {
-                            System.out.println("Game Over");
-                            System.out.println("Final Score: " + g.getScore());
+                            // check for loss
+                            if (g.gameOver())
+                                playAgain.setEnabled(true);
+                            if (g.gameWon()) {
+                                playAgain.setEnabled(true);
+                                resume.setEnabled(true);
+                            }
                         }
                     }
                 }
@@ -102,23 +128,6 @@ public class UI extends JPanel implements ActionListener {
         });
 
         g = new Grid();
-    }
-
-    // checks for performed actions (for animation)
-    public void actionPerformed(ActionEvent e) {
-        this.counter++;
-        repaint();
-        // when the timer should close
-        if (this.counter > 5) {
-            time.stop();
-            timerOn = false;
-            counter = 0;
-            xvel = 0;
-            yvel = 0;
-
-            // cleanup after animation
-            g.resetTileStatus();
-        }
     }
 
     // saves grid information to a save file
@@ -154,6 +163,7 @@ public class UI extends JPanel implements ActionListener {
 
             // enable custom font
             try {
+                // create a new true type font
                 Font f = Font.createFont(Font.TRUETYPE_FONT, new File("ClearSans-Bold.ttf")).deriveFont(80f);
                 GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
                 //register the font
@@ -198,12 +208,47 @@ public class UI extends JPanel implements ActionListener {
                 y = 40 + ((25 - metrics.getHeight()) / 2) + metrics.getAscent();
                 graphics.drawString(String.valueOf(this.g.getHighscore()), x, y);
 
-                // display new game button
+                // display new game button (cover)
                 g2D.setColor(Color.decode("#8f7a66"));
                 g2D.fillRoundRect(370, 80, 120, 40, 5, 5);
 
+                // print new game text
+                f = f.deriveFont(18f);
+                g2D.setFont(f);
+                g2D.setColor(Color.decode("#ffffff"));
+                metrics = graphics.getFontMetrics(f);
+                x = 370 + (120 - metrics.stringWidth("New Game")) / 2;
+                y = 80 + ((40 - metrics.getHeight()) / 2) + metrics.getAscent();
+                graphics.drawString( "New Game", x, y);
+
                 // draw the grid
                 this.g.paint(g2D, f, 15 - (this.counter * this.ANIMOD), this.xvel, this.yvel);
+
+                // paint description (header)
+                f = f.deriveFont(18f);
+                g2D.setFont(f);
+                g2D.setColor(Color.decode("#776e65"));
+                x = 20;
+                y = 635 + metrics.getAscent();
+                graphics.drawString("HOW TO PLAY: ", x, y);
+
+                // paint description (body 1)
+                x += metrics.stringWidth("HOW TO PLAY: ");
+                f = Font.createFont(Font.TRUETYPE_FONT, new File("ClearSans-Regular.ttf")).deriveFont(17f); // register a new font
+                ge.registerFont(f);
+                g2D.setFont(f);
+                metrics = graphics.getFontMetrics(f);
+                graphics.drawString("Use your arrow keys to move the tiles. Tiles", x, y);
+
+                // paint description (body 2)
+                x = 20;
+                y += (metrics.getHeight() / 2) + metrics.getAscent();
+                graphics.drawString("with the same number merge into one when they touch. Add", x, y);
+
+                // paint description (body 3)
+                y += (metrics.getHeight() / 2) + metrics.getAscent();
+                graphics.drawString("them up to reach 2048!", x, y);
+
             } catch (IOException|FontFormatException e) {
                 e.printStackTrace();
             }
@@ -219,6 +264,64 @@ public class UI extends JPanel implements ActionListener {
         frame.setSize(UI.WIDTH, UI.HEIGHT);                     // set dimensions
         gui.setBackground(Color.decode("#faf8ef"));             // set frame background color
         frame.setVisible(true);                                 // set frame to visible
+        frame.setResizable(false);
+
+        // set layout to absolute
+        frame.getContentPane().setLayout(null);
+
+        // create a button
+        gui.reset = new JButton("New Game");
+        gui.reset.setBounds(370, 80, 120, 40);
+        gui.reset.setOpaque(false);                                 // set the frame to transparent
+        gui.reset.setContentAreaFilled(false);
+        gui.reset.setBorderPainted(false);
+        gui.reset.setFocusable(false);
+        gui.reset.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e){
+                gui.g.restart();
+                gui.repaint();
+                // set buttons back to disabled
+                gui.playAgain.setEnabled(false);
+                gui.resume.setEnabled(false);
+            }
+        });
+        frame.add(gui.reset);
+
+        gui.playAgain = new JButton("Play again");
+        gui.playAgain.setBounds(190, 400, 120, 40);
+        gui.playAgain.setOpaque(false);
+        gui.playAgain.setContentAreaFilled(false);
+        gui.playAgain.setBorderPainted(false);
+        gui.playAgain.setFocusable(false);
+        gui.playAgain.setEnabled(true);
+        gui.playAgain.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e){
+                gui.g.restart();
+                gui.repaint();
+                // set buttons back to disabled
+                gui.playAgain.setEnabled(false);
+                gui.resume.setEnabled(false);
+                gui.g.setWon(true);
+            }
+        });
+        frame.add(gui.playAgain);
+
+        gui.resume = new JButton("Continue");
+        gui.resume.setBounds(190, 445, 120, 40);
+        gui.resume.setOpaque(false);
+        gui.resume.setContentAreaFilled(false);
+        gui.resume.setBorderPainted(false);
+        gui.resume.setFocusable(false);
+        gui.playAgain.setEnabled(true);
+        gui.resume.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e){
+                //...
+                // set buttons back to disabled
+                gui.playAgain.setEnabled(false);
+                gui.resume.setEnabled(false);
+            }
+        });
+        frame.add(gui.resume);
 
         // set the window icon
         ImageIcon icon = new ImageIcon("2048.png");

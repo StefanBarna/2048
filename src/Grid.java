@@ -2,16 +2,20 @@ import java.awt.*;
 import java.awt.Graphics;
 
 public class Grid {
-    public static final int SIZE = 4;            // dimensions of playing grid
-    private Tile[][] grid;  // playing grid consisting of tiles
-    private int score;      // current player score
-    private int highscore;    // player highest score
+    public static final int SIZE = 4;   // dimensions of playing grid
+    private final Tile[][] grid;        // playing grid consisting of tiles
+
+    private int score;                  // current player score
+    private int highscore;              // player highest score
+
+    private boolean won;                // true if the player has won (the game continue past this point)
 
     // base constructor
     public Grid() {
         // initialize variables
         this.score = 0;
         this.grid = new Tile[SIZE][SIZE];
+        this.won = false;
 
         // initialize all tiles within the grid
         for (int i = 0; i < SIZE; i++) {
@@ -38,6 +42,22 @@ public class Grid {
         return this.highscore;
     }
 
+    // resets the playing field, as though a new game began
+    public void restart() {
+        // reset score
+        this.score = 0;
+
+        // reset all tiles within the grid
+        for (int i = 0; i < SIZE; i++) {
+            for (int j = 0; j < SIZE; j++)
+                this.grid[i][j].setVal(0);
+        }
+
+        // select two random tiles to give numbers to
+        this.generateTile();
+        this.generateTile();
+    }
+
     // generates a random value (2 or 4) on a random tile if a tile is available
     public void generateTile() {
         // randomly generate coordinates and value
@@ -56,14 +76,11 @@ public class Grid {
     }
 
     // moves all tiles to their rightmost position on the grid
-    public boolean move(Tile[][] grid) {
-        boolean action = false;
-
+    public void move(Tile[][] grid) {
         // iterate over the grid
         for (int i = 0; i < SIZE; i++) {
             for (int j = SIZE - 2; j >= 0; j--) {
                 // check if the element has a value
-                // TODO: grid[i][j] is null
                 if (grid[i][j].getVal() != 0) {
                     // check that next slot is not an edge
                     if (j < SIZE - 1) {
@@ -73,7 +90,6 @@ public class Grid {
                                 grid[i][k + 1].setVal(grid[i][k].getVal());
                                 grid[i][k].reset();
                                 grid[i][k + 1].setAction(true);
-                                action = true;
                             }
                             // merge
                             else if (grid[i][k + 1].equals(grid[i][k]) && !grid[i][k + 1].getMerged() && !grid[i][k].getMerged()) {
@@ -88,7 +104,6 @@ public class Grid {
                                 grid[i][k].reset();
 
                                 grid[i][k + 1].setAction(true);
-                                action = true;
                                 break;
                             }
                             // cannot perform action
@@ -98,14 +113,10 @@ public class Grid {
                 }
             }
         }
-
-        // return whether something happened
-        return action;
     }
 
     // sets up an appropriate grid to move
-    public boolean turn(String key) {
-        boolean action = false;
+    public void turn(String key) {
         Tile[][] tileset = new Tile[SIZE][SIZE];
 
         // copy all values of grid to tileset in an appropriate order to move
@@ -113,9 +124,8 @@ public class Grid {
             case "RIGHT":
                 // move right; do nothing
                 for (int i = 0; i < SIZE; i++) {
-                    for (int j = 0; j < SIZE; j++) {
+                    for (int j = 0; j < SIZE; j++)
                         tileset[i][j] = this.grid[i][j];
-                    }
                 }
                 break;
             case "LEFT":
@@ -144,9 +154,21 @@ public class Grid {
                 break;
         }
 
-        return this.move(tileset);
+        this.move(tileset);
     }
 
+    // checks if an action was made in the most recent turn
+    public boolean turnMade() {
+        for (int i = 0; i < SIZE; i++) {
+            for (int j = 0; j < SIZE; j++) {
+                if (this.grid[i][j].getAction())
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    // resets the status of the tiles (merged and action are set to false)
     public void resetTileStatus() {
         for (Tile[] row : this.grid) {
             for (Tile tile : row) {
@@ -187,10 +209,35 @@ public class Grid {
         return false;
     }
 
+    // sets the win state of the current game
+    public void setWon(boolean win) {
+        this.won = win;
+    }
+
+    // checks if the player has won
+    public boolean gameWon() {
+        if (!this.won) {
+            for (int i = 0; i < SIZE; i++) {
+                for (int j = 0; j < SIZE; j++) {
+                    if (this.grid[i][j].getVal() == 2048) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // checks if the player has lost
+    public boolean gameOver() {
+        return !this.hasEmpty() && !this.hasMerge();
+    }
+
+    // paints the contents of the grid to a graphics object
     public void paint(Graphics graphics, Font f, int offset, int xvel, int yvel) {
         // draw base square, where all tiles are to be drawn
         graphics.setColor(Color.decode("#bbada0"));
-        graphics.fillRoundRect(15, 130, 475, 475, 10, 10);
+        graphics.fillRoundRect(15, 140, 475, 475, 10, 10);
 
         // set the font for tiles
         f = f.deriveFont(40f);
@@ -202,14 +249,81 @@ public class Grid {
                 // mid animation paint
                 if ((xvel != 0 || yvel != 0) && this.grid[j][i].getAction()) {
                     Tile temp = new Tile();
-                    temp.paint(graphics, 30 + (115 * i), 145 + (115 * j), f);
+                    temp.paint(graphics, 30 + (115 * i), 155 + (115 * j), f);
                     if (this.grid[j][i].getVal() != 0)
-                        this.grid[j][i].paint(graphics, 30 + (115 * i) + (offset * xvel), 145 + (115 * j) + (offset * yvel), f);
+                        this.grid[j][i].paint(graphics, 30 + (115 * i) + (offset * xvel), 155 + (115 * j) + (offset * yvel), f);
                 }
                 // default paint
                 else
-                    this.grid[j][i].paint(graphics, 30 + (115 * i), 145 + (115 * j), f);
+                    this.grid[j][i].paint(graphics, 30 + (115 * i), 155 + (115 * j), f);
             }
+        }
+
+        // check for you lose overlay
+        if (this.gameOver()) {
+            // semi-opaque overlay
+            graphics.setColor(new Color(250, 248, 239, 150));
+            graphics.fillRoundRect(15, 140, 475, 475, 10, 10);
+
+            // game over display
+            graphics.setColor(Color.decode("#776e65"));
+            f = f.deriveFont(60f);
+            graphics.setFont(f);
+            FontMetrics metrics = graphics.getFontMetrics(f);
+
+            int x = 260 - (metrics.stringWidth("Game over!") / 2);
+            graphics.drawString("Game over!", x, 360);
+
+            // display try again button
+            graphics.setColor(Color.decode("#8f7a66"));
+            graphics.fillRoundRect(190, 400, 120, 40, 5, 5);
+
+            f = f.deriveFont(18f);
+            graphics.setFont(f);
+            graphics.setColor(Color.decode("#ffffff"));
+            metrics = graphics.getFontMetrics(f);
+            x = 190 + (120 - metrics.stringWidth("Try again")) / 2;
+            int y = 400 + ((40 - metrics.getHeight()) / 2) + metrics.getAscent();
+            graphics.drawString( "Try again", x, y);
+        }
+        // check for you win overlay
+        else if (this.gameWon()) {
+            // semi-opaque overlay
+            graphics.setColor(new Color(237, 194, 46, 150));
+            graphics.fillRoundRect(15, 140, 475, 475, 10, 10);
+
+            // game over display
+            graphics.setColor(Color.decode("#ffffff"));
+            f = f.deriveFont(60f);
+            graphics.setFont(f);
+            FontMetrics metrics = graphics.getFontMetrics(f);
+
+            int x = 260 -(metrics.stringWidth("You win!") / 2);
+            graphics.drawString("You win!", x, 360);
+
+            // display try again button
+            graphics.setColor(Color.decode("#8f7a66"));
+            graphics.fillRoundRect(190, 400, 120, 40, 5, 5);
+
+            f = f.deriveFont(18f);
+            graphics.setFont(f);
+            graphics.setColor(Color.decode("#ffffff"));
+            metrics = graphics.getFontMetrics(f);
+            x = 190 + (120 - metrics.stringWidth("Try again")) / 2;
+            int y = 400 + ((40 - metrics.getHeight()) / 2) + metrics.getAscent();
+            graphics.drawString( "Try again", x, y);
+
+            // display continue button
+            graphics.setColor(Color.decode("#8f7a66"));
+            graphics.fillRoundRect(190, 455, 120, 40, 5, 5);
+
+            f = f.deriveFont(18f);
+            graphics.setFont(f);
+            graphics.setColor(Color.decode("#ffffff"));
+            metrics = graphics.getFontMetrics(f);
+            x = 190 + (120 - metrics.stringWidth("Continue")) / 2;
+            y = 455 + ((40 - metrics.getHeight()) / 2) + metrics.getAscent();
+            graphics.drawString( "Continue", x, y);
         }
     }
 }

@@ -3,8 +3,8 @@
 import java.awt.*;
 
 public class Tile {
-    private static int WIDTH = 100; // width of a tile
-    private static int HEIGHT = 100;// height of a tile
+    private static final int WIDTH = 100; // width of a tile
+    private static final int HEIGHT = 100;// height of a tile
 
     private int val;            // value of the tile
     private boolean merged;     // representing if the tile has merged this turn
